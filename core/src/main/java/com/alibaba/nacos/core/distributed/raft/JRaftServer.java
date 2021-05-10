@@ -18,6 +18,7 @@ package com.alibaba.nacos.core.distributed.raft;
 
 import com.alibaba.nacos.common.JustForTest;
 import com.alibaba.nacos.common.model.RestResult;
+import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.utils.ConvertUtils;
 import com.alibaba.nacos.common.utils.IPUtil;
 import com.alibaba.nacos.common.utils.LoggerUtils;
@@ -51,6 +52,7 @@ import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.closure.ReadIndexClosure;
 import com.alipay.sofa.jraft.conf.Configuration;
 import com.alipay.sofa.jraft.core.CliServiceImpl;
+import com.alipay.sofa.jraft.core.NodeImpl;
 import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.entity.Task;
 import com.alipay.sofa.jraft.error.RaftError;
@@ -66,6 +68,7 @@ import com.alipay.sofa.jraft.util.Endpoint;
 import com.google.common.base.Joiner;
 import com.google.protobuf.Message;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.ReflectionUtils;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
@@ -480,9 +483,31 @@ public class JRaftServer {
                 } else {
                     Loggers.RAFT.error("Node removal failed : {}", result);
                 }
+                PeerId leader = RouteTable.getInstance().selectLeader(group);
+                try {
+                    long term = (long) ReflectionUtils.getField(NodeImpl.class.getDeclaredField("currTerm"), tuple.getNode());
+                    NotifyCenter.publishEvent(
+                            RaftEvent.builder().groupId(group).leader(leader.getIp()).term(term).raftClusterInfo(allPeers(tuple.getNode())).build());
+                } catch (NoSuchFieldException e) {
+                    e.printStackTrace();
+                }
+                
+    
             }
         });
         return successCnt.get() == multiRaftGroup.size();
+    }
+    
+    private List<String> allPeers(Node node) {
+        if (node == null) {
+            return Collections.emptyList();
+        }
+        
+        if (node.isLeader()) {
+            return JRaftUtils.toStrings(node.listPeers());
+        }
+        
+        return JRaftUtils.toStrings(RouteTable.getInstance().getConfiguration(node.getGroupId()).getPeers());
     }
     
     void refreshRouteTable(String group) {
