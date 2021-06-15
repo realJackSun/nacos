@@ -23,6 +23,7 @@ import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 
@@ -34,6 +35,7 @@ import java.util.Objects;
  * @since 1.2.0
  */
 @Configuration
+@Component
 public class AuthConfigs {
     
     @JustForTest
