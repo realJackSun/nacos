@@ -20,6 +20,7 @@ import com.alibaba.nacos.common.model.RestResult;
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.notify.listener.Subscriber;
 import com.alibaba.nacos.common.notify.Event;
+import com.alibaba.nacos.common.utils.ConcurrentHashSet;
 import com.alibaba.nacos.common.utils.MapUtils;
 import com.alibaba.nacos.common.utils.ThreadUtils;
 import com.alibaba.nacos.consistency.ProtocolMetaData;
@@ -32,6 +33,7 @@ import com.alibaba.nacos.consistency.entity.ReadRequest;
 import com.alibaba.nacos.consistency.entity.Response;
 import com.alibaba.nacos.consistency.entity.WriteRequest;
 import com.alibaba.nacos.core.cluster.Member;
+import com.alibaba.nacos.core.cluster.NodeState;
 import com.alibaba.nacos.core.cluster.ServerMemberManager;
 import com.alibaba.nacos.core.distributed.AbstractConsistencyProtocol;
 import com.alibaba.nacos.core.distributed.raft.exception.NoSuchRaftGroupException;
@@ -146,7 +148,8 @@ public class JRaftProtocol extends AbstractConsistencyProtocol<RaftConfig, Reque
                     metaData.load(value);
                     
                     // The metadata information is injected into the metadata information of the node
-                    injectProtocolMetaData(metaData);
+                    Set<Member> newMembers = parseMembers(event);
+                    injectProtocolMetaData(newMembers, metaData);
                 }
                 
                 @Override
@@ -156,6 +159,27 @@ public class JRaftProtocol extends AbstractConsistencyProtocol<RaftConfig, Reque
                 
             });
         }
+    }
+    
+    private Set<Member> parseMembers(RaftEvent raftEvent) {
+        Set<Member> members = new ConcurrentHashSet<>();
+        List<String> clusterInfo = raftEvent.getRaftClusterInfo();
+        for (String memberInfo : clusterInfo) {
+            String[] serverAddrArr = memberInfo.split(":");
+            String ip;
+            int port;
+            if (serverAddrArr.length == 1) {
+                ip = serverAddrArr[0];
+                port = 8848;
+            } else if (serverAddrArr.length == 2) {
+                ip = serverAddrArr[0];
+                port = Integer.parseInt(serverAddrArr[1]) + 1000;
+            } else {
+                continue;
+            }
+            members.add(Member.builder().ip(ip).port(port).state(NodeState.SUSPICIOUS).build());
+        }
+        return members;
     }
     
     @Override
@@ -210,10 +234,47 @@ public class JRaftProtocol extends AbstractConsistencyProtocol<RaftConfig, Reque
         return jRaftMaintainService.execute(args);
     }
     
-    private void injectProtocolMetaData(ProtocolMetaData metaData) {
-        Member member = memberManager.getSelf();
-        member.setExtendVal("raftMetaData", metaData);
-        memberManager.update(member);
+    
+    /**
+     * The Method update the ServerMemberManager with the new jRaft members.
+     * @param newMembers It contains all of the new members we want to inject into ServerMemberManager.
+     * @param metaData The member metadata that should be injected into each of the new members.
+     */
+    private void injectProtocolMetaData(Set<Member> newMembers, ProtocolMetaData metaData) {
+        Collection<Member> oldMembers = memberManager.allMembers();
+        for (Member oldMember : oldMembers) {
+            // Update the status
+            if (newMembers.contains(oldMember)) {
+                newMembers.remove(oldMember);
+                newMembers.add(oldMember);
+            }
+        }
+        // Here we want to find all of the members that should be removed.
+        // The operation is -- add oldMembers first, and then remove newMembers, then the oldMembers - newMembers set is generated.
+        Set<Member> removeMembers = new ConcurrentHashSet<>();
+        removeMembers.addAll(oldMembers);
+        for (Member member : newMembers) {
+            if (removeMembers.contains(member)) {
+                removeMembers.remove(member);
+            }
+        }
+        // Here we want to find all of the members that should be added.
+        // The operation is on the contrary -- add newMembers first, and then remove oldMembers,
+        // then the newMembers - oldMembers set is generated.
+        Set<Member> addMembers = new ConcurrentHashSet<>();
+        addMembers.addAll(newMembers);
+        for (Member member : oldMembers) {
+            if (addMembers.contains(member)) {
+                addMembers.remove(member);
+            }
+        }
+        
+        // We only need to inject the metadata for all new members.
+        for (Member member : newMembers) {
+            member.setExtendVal("raftMetaData", metaData);
+        }
+        memberManager.memberLeave(removeMembers);
+        memberManager.memberJoin(addMembers);
     }
     
     @Override
