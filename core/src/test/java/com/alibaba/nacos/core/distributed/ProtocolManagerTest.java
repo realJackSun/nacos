@@ -81,21 +81,6 @@ public class ProtocolManagerTest extends TestCase {
     public void tearDown() {
     }
     
-    public void testToAPMembersInfo() {
-    }
-    
-    public void testToCPMembersInfo() {
-    }
-    
-    public void testGetCpProtocol() {
-    }
-    
-    public void testGetApProtocol() {
-    }
-    
-    public void testDestroy() {
-    }
-    
     @Test
     public void testOnEvent() {
         EnvUtil.setEnvironment(new StandardEnvironment());
@@ -106,13 +91,13 @@ public class ProtocolManagerTest extends TestCase {
         Member member1 = Member.builder().ip(ip1).port(port).build();
         Member member2 = Member.builder().ip(ip2).port(port).build();
         Member member3 = Member.builder().ip(ip3).port(port).build();
-        Set<String> ips = new HashSet<>();
         Collection<Member> members = new LinkedList<>();
         members.add(member1);
         members.add(member2);
         members.add(member3);
         MembersChangeEvent event = MembersChangeEvent.builder().members(members).build();
         protocolManager.onEvent(event);
+        Set<String> ips = new HashSet<>();
         verify(cpProtocol).memberChange(eq(ips));
     }
 }

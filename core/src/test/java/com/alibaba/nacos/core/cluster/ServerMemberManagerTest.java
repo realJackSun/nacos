@@ -31,7 +31,6 @@ import org.springframework.boot.web.context.WebServerInitializedEvent;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 import javax.servlet.ServletContext;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -146,7 +145,4 @@ public class ServerMemberManagerTest {
         assertEquals(self, serverMemberManager.getSelf());
     }
     
-    public void testReportTask() {
-//        serverMemberManager.onApplicationEvent();
-    }
 }
