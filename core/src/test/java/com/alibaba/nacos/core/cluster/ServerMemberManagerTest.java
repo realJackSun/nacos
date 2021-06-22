@@ -20,15 +20,19 @@ import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.common.notify.EventPublisher;
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.sys.env.EnvUtil;
+import com.alibaba.nacos.sys.utils.InetUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.boot.web.context.WebServerInitializedEvent;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 import javax.servlet.ServletContext;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
@@ -55,15 +59,26 @@ public class ServerMemberManagerTest {
     
     private static final AtomicBoolean EVENT_PUBLISH = new AtomicBoolean(false);
     
+    private String ip1 = "1.1.1.1";
+    
+    private String ip2 = "1.1.1.2";
+    
+    private int port = 8848;
+    
+    private String endpoint1 = "1.1.1.1:8848";
+    
+    @Mock
+    private WebServerInitializedEvent event;
+    
     @Before
     public void setUp() throws Exception {
-        when(environment.getProperty("server.port", Integer.class, 8848)).thenReturn(8848);
+        when(environment.getProperty("server.port", Integer.class, 8848)).thenReturn(port);
         when(environment.getProperty("nacos.member-change-event.queue.size", Integer.class, 128)).thenReturn(128);
         EnvUtil.setEnvironment(environment);
         when(servletContext.getContextPath()).thenReturn("");
         serverMemberManager = new ServerMemberManager(servletContext);
-        serverMemberManager.updateMember(Member.builder().ip("1.1.1.1").port(8848).state(NodeState.UP).build());
-        serverMemberManager.getMemberAddressInfos().add("1.1.1.1:8848");
+        serverMemberManager.updateMember(Member.builder().ip(ip1).port(port).state(NodeState.UP).build());
+        serverMemberManager.getMemberAddressInfos().add(endpoint1);
         NotifyCenter.getPublisherMap().put(MembersChangeEvent.class.getCanonicalName(), eventPublisher);
     }
     
@@ -76,36 +91,62 @@ public class ServerMemberManagerTest {
     
     @Test
     public void testUpdateNonExistMember() {
-        Member newMember = Member.builder().ip("1.1.1.2").port(8848).state(NodeState.UP).build();
+        Member newMember = Member.builder().ip(ip2).port(port).state(NodeState.UP).build();
         assertFalse(serverMemberManager.update(newMember));
     }
     
     @Test
     public void testUpdateDownMember() {
-        Member newMember = Member.builder().ip("1.1.1.1").port(8848).state(NodeState.DOWN).build();
+        Member newMember = Member.builder().ip(ip1).port(port).state(NodeState.DOWN).build();
         assertTrue(serverMemberManager.update(newMember));
-        assertFalse(serverMemberManager.getMemberAddressInfos().contains("1.1.1.1:8848"));
+        assertFalse(serverMemberManager.getMemberAddressInfos().contains(endpoint1));
         verify(eventPublisher).publish(any(MembersChangeEvent.class));
     }
     
     @Test
     public void testUpdateVersionMember() {
-        Member newMember = Member.builder().ip("1.1.1.1").port(8848).state(NodeState.UP).build();
+        Member newMember = Member.builder().ip(ip1).port(port).state(NodeState.UP).build();
         newMember.setExtendVal(MemberMetaDataConstants.VERSION, "testVersion");
         assertTrue(serverMemberManager.update(newMember));
-        assertTrue(serverMemberManager.getMemberAddressInfos().contains("1.1.1.1:8848"));
+        assertTrue(serverMemberManager.getMemberAddressInfos().contains(endpoint1));
         assertEquals("testVersion",
-                serverMemberManager.getServerList().get("1.1.1.1:8848").getExtendVal(MemberMetaDataConstants.VERSION));
+                serverMemberManager.getServerList().get(endpoint1).getExtendVal(MemberMetaDataConstants.VERSION));
         verify(eventPublisher).publish(any(MembersChangeEvent.class));
     }
     
     @Test
     public void testUpdateNonBasicExtendInfoMember() {
-        Member newMember = Member.builder().ip("1.1.1.1").port(8848).state(NodeState.UP).build();
+        Member newMember = Member.builder().ip(ip1).port(port).state(NodeState.UP).build();
         newMember.setExtendVal("naming", "test");
         assertTrue(serverMemberManager.update(newMember));
-        assertTrue(serverMemberManager.getMemberAddressInfos().contains("1.1.1.1:8848"));
-        assertEquals("test", serverMemberManager.getServerList().get("1.1.1.1:8848").getExtendVal("naming"));
+        assertTrue(serverMemberManager.getMemberAddressInfos().contains(endpoint1));
+        assertEquals("test", serverMemberManager.getServerList().get(endpoint1).getExtendVal("naming"));
         verify(eventPublisher, never()).publish(any(MembersChangeEvent.class));
+    }
+    
+    @Test
+    public void testHasMember() {
+        serverMemberManager.updateMember(Member.builder().ip(ip1).port(port).state(NodeState.UP).build());
+        assertTrue(serverMemberManager.hasMember(ip1));
+    }
+    
+    @Test
+    public void testAllMembersWithoutSelf() {
+        List<Member> members = serverMemberManager.allMembersWithoutSelf();
+        Member self = serverMemberManager.getSelf();
+        assertFalse(members.contains(self));
+        assertTrue(members.contains(Member.builder().ip(ip1).port(port).state(NodeState.UP).build()));
+    }
+    
+    @Test
+    public void testGetSelf() {
+        port = EnvUtil.getProperty("server.port", Integer.class, 8848);
+        String localAddress = InetUtils.getSelfIP() + ":" + port;
+        Member self = MemberUtil.singleParse(localAddress);
+        assertEquals(self, serverMemberManager.getSelf());
+    }
+    
+    public void testReportTask() {
+//        serverMemberManager.onApplicationEvent();
     }
 }
