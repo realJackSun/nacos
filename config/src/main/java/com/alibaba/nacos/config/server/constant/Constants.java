@@ -276,6 +276,6 @@ public class Constants {
     
     public static final String CONFIG_EXPORT_METADATA_NEW = ".metadata.yml";
     
-    public static final String DERBY_DIR_NAME = "derby-data";
+    public static final String DERBY_DIR_NAME = "derby-data1";
     
 }
