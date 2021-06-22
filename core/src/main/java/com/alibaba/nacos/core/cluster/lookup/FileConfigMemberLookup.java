@@ -48,7 +48,7 @@ public class FileConfigMemberLookup extends AbstractMemberLookup {
         
         @Override
         public boolean interest(String context) {
-            return StringUtils.contains(context, DEFAULT_SEARCH_SEQ);
+            return StringUtils.contains(context, "cluster1.conf");
         }
     };
     

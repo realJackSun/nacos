@@ -299,7 +299,7 @@ public class EnvUtil {
     }
     
     public static String getClusterConfFilePath() {
-        return Paths.get(getNacosHome(), DEFAULT_ADDITIONAL_PATH, DEFAULT_ADDITIONAL_FILE).toString();
+         return Paths.get(getNacosHome(), "conf", "cluster1.conf").toString();
     }
     
     /**
