@@ -39,7 +39,7 @@ public abstract class AbstractNacosLogging {
         String loggingPath = System.getProperty(NACOS_LOGGING_PATH_PROPERTY);
         if (StringUtils.isBlank(loggingPath)) {
             String userHome = System.getProperty("user.home");
-            System.setProperty(NACOS_LOGGING_PATH_PROPERTY, userHome + File.separator + "logs");
+            System.setProperty(NACOS_LOGGING_PATH_PROPERTY, userHome + File.separator + "logs1");
         }
     }
     

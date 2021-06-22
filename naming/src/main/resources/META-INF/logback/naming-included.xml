@@ -17,7 +17,7 @@
 
 <included>
     
-    <springProperty scope="context" name="logPath" source="nacos.logs.path" defaultValue="${user.home}/nacos/logs"/>
+    <springProperty scope="context" name="logPath" source="nacos.logs.path" defaultValue="${user.home}/nacos/logs1"/>
     <property name="LOG_HOME" value="${logPath}"/>
     
     <appender name="naming-server"
